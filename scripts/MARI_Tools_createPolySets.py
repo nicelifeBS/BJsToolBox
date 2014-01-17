@@ -12,11 +12,14 @@ get a selection set. The name follows the UDIM scheme of MARI. E.g.: If v = 0-1 
 1-2: UDIM_1002. If v = 1-2 -> UDIM_1011, UDIM_1012,...
 
 Problems:
-- Slow with big modells
+- Slow with big models
 
 """
 
 import time
+
+### METHODS ###
+
 
 ### LX SERVICE ###
 layer_svc = lx.Service("layerservice")
@@ -47,12 +50,6 @@ for index in uv_indices:
     # Convert to integers to identify the UV offset sector    
     u = int(uv_pos[0])
     v = int(uv_pos[1])
-    #######################################
-    #   Code Change
-    # Use the following -> faster!:
-    #
-    # u, v = int(uv_pos)
-    #######################################
     
     try:
         uv_dict[1001 + (v * 10) + u ].append(vert_index)
@@ -110,18 +107,24 @@ lx.eval("select.type vertex")
 # for key, value in uv_dict.iteritems():
 #
 ################################
-for key in uv_dict:
+
+# Progress bar steps
+#progressbar.init(len(uv_dict))
+
+#lx.out("dict length: ", len(uv_dict))
+
+for key, index in uv_dict.iteritems():
     # Clear selection
     lx.eval("select.drop polygon")
     lx.eval("select.drop vertex")
     
-    # Progress bar steps
-    progressbar.init(len(uv_dict[key]))
+    # Progress bar
+    progressbar.init(len(index))
+    lx.out("index length:" ,len(index))
     
     # Select verts
-    for index in uv_dict[key]:
-        lx.eval("select.element %s vertex add %s" %(layer_index, index))
-        
+    for i in index:
+        lx.eval("select.element %s vertex add %s" %(layer_index, i))
         # Progressbar step
         progressbar.step(1)
     

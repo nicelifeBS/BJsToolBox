@@ -70,8 +70,6 @@ def create_imageMap(clipPath):
     lx.eval("item.channel txtrLocator$tileV reset")
     layer_index = lx.eval("query layerservice layer.index ? main")
     
-    
-    
 def load_files():
     """
     Load in files and save complete paths in a list
@@ -127,7 +125,6 @@ def get_UDIM(file_name, delimiter):
         except ValueError:
             pass
     
-
 def check_clip_size(clip_name):
     """Checks the size of a clip and return True if it is 8x8 pixels"""
     
@@ -154,18 +151,6 @@ def set_gamma(value):
 def get_texture_parent(item_ID):
     """Returns the parent of an image map"""
     return lx.eval("query sceneservice textureLayer.parent ? %s" %item_ID)
-
-def warning_msg(name):
-    """A modal warning dialog. Message text can be set through name var."""
-    try:
-        lx.eval("dialog.setup warning")
-        lx.eval("dialog.title {Error}")
-        lx.eval("dialog.msg {Ooopsy. %s.}" %name)
-        lx.eval("dialog.result ok")
-        lx.eval("dialog.open")
-        
-    except RuntimeError:
-        pass
 
 def vmap_selected(vmap_num, layer_index):
     """See if a UV map of the current layer is selected and returns the name.
@@ -195,6 +180,38 @@ def vmap_selected(vmap_num, layer_index):
 
 def test(test):
     lx.out(test)
+    
+###############################################################
+
+### DIALOGS & MESSAGES ###
+def warning_msg(name):
+    """A modal warning dialog. Message text can be set through name var."""
+    try:
+        lx.eval("dialog.setup warning")
+        lx.eval("dialog.title {Error}")
+        lx.eval("dialog.msg {Ooopsy. %s.}" %name)
+        lx.eval("dialog.result ok")
+        lx.eval("dialog.open")
+        
+    except RuntimeError:
+        pass
+
+def dialog_brake():
+    try:
+        lx.eval("dialog.setup yesNo")
+        lx.eval("dialog.title {Coffee Brake?}")
+        lx.eval("dialog.msg {This could take a while. Do you want to grab a cup of coffee?}")
+        lx.eval("dialog.result ok")
+        lx.eval("dialog.open")
+        
+        lx.eval("dialog.result ?")
+        return True
+    
+    except RuntimeError:
+        return False
+
+###############################################################
+
 
 ### FUNCTIONS END ###
 
@@ -333,7 +350,7 @@ elif args == "createPolySets":
         warning_msg("Please select a UV map.")
     
     # Proceed with MARI_Tools_createPolySets.py script
-    else:
+    elif dialog_brake() == True:
         lx.eval("@MARI_Tools_createPolySets.py")
 
 
