@@ -13,7 +13,6 @@ The name follows the UDIM scheme of MARI. E.g.: If u and v are between 0-1 the s
 
 Problems:
 - Slow with big models
-
 """
 
 import time
@@ -159,6 +158,3 @@ sets_creation = t2 - t1
 
 # Debugging Speed
 lx.out("Selection Sets Creation: %s sec" %sets_creation)
-
-
-
