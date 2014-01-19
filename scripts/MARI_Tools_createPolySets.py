@@ -1,18 +1,18 @@
 #python
 
 """
-UVselset v1.0
+UVselset v1.2
 
 Author: Bjoern Siegert aka nicelife
 
-Last edit: 2013-12-06
+Last edit: 2014-01-18
 
-Creates poly selection sets based on the UV offset values. Each sector sector containing polys will
-get a selection set. The name follows the UDIM scheme of MARI. E.g.: If v = 0-1 the space 0-1 gets a selection set with the name UDIM_1001,
+Creates poly selection sets based on the UV offset values. Each sector containing polys will get a selection set.
+The name follows the UDIM scheme of MARI. E.g.: If u and v are between 0-1 the space 0-1 gets a selection set with the name UDIM_1001,
 1-2: UDIM_1002. If v = 1-2 -> UDIM_1011, UDIM_1012,...
 
 Problems:
-- Slow with big modells
+- Slow with big models
 
 """
 
@@ -28,45 +28,67 @@ layer_index = layer_svc.query("layer.index")
 
 ### VARIABLES ###
 uv_dict = {}
+layer_svc.select("polys", "all")
+poly_list = layer_svc.query("polys")
 
-#############################
-### Debugging: Start Time ###
-t1 = time.time()
-#############################
+# Get the name of selected uv map
+selected_uv_map = lx.eval("vertMap.list type:txuv ?")
 
-# Select the UVs
-layer_svc.select("uvs", "all")
-uv_indices = layer_svc.query("uvs")
-
-# Assign UV the UDIMs to the different UVs. Save result in dictionary.
-for index in uv_indices:
-    layer_svc.select("uv.index", str(index))
-    uv_pos = layer_svc.query("uv.pos")
-    vert_index = layer_svc.query("uv.vert")
+# Get the index of the selected uv map
+if selected_uv_map != "_____n_o_n_e_____":
+    # Select the vmap
+    layer_svc.select("vmaps", "all")
+    vmap_list = layer_svc.query("vmap.name")
     
-    # Convert to integers to identify the UV offset sector    
-    u = int(uv_pos[0])
-    v = int(uv_pos[1])
-    #######################################
-    #   Code Change
-    # Use the following -> faster!:
-    #
-    # u, v = int(uv_pos)
-    #######################################
+    for vmap in xrange(len(vmap_list)):
+        layer_svc.select("vmap.index", str(vmap))
+        
+        # Compare vmap name with the selected uv map. If it matches we have the index we need.
+        if layer_svc.query("vmap.name") == selected_uv_map:
+            vmap_index = vmap
+            break
+
+else:
+    lx.out("Hey mate, you didn't select a proper UV map. So all I did was printing this stupid message.")
+    # Warning dialog!
+
+############################################################
+#
+# Here we fill the uv_dict with the poly indices
+# We only need the first uv values of the polygon. This is 
+# enough to identify uv sector
+#
+############################################################
+for poly in poly_list:
+    layer_svc.select("poly.index", str(poly))
+    vmap_value = layer_svc.query("poly.vmapValue")
     
+    # First we convert to integer to identify the uv sector
+    vmap_value = map(int, vmap_value)
+    
+    # Get the first uv values in the list
+    u = vmap_value[0]
+    v = vmap_value[1]
+    
+    # Here we write in the poly index to the UDIM key. If the key is not found it is created via the exception
     try:
-        uv_dict[1001 + (v * 10) + u ].append(vert_index)
-    
+        uv_dict[1001 + (v * 10) + u ].append(poly)
+        
     except KeyError:
-        uv_dict[1001 + (v * 10) + u ] = [vert_index]
+        uv_dict[1001 + (v * 10) + u ] = [poly]    
 
-############################
-### Debugging: Stop Time ###
-t2 = time.time()
-dict_setup = t2 - t1
-############################
 
-# Check if selection set already exists. If yes it is deleted.
+# Initialize the progress bar
+progressbar.init(len(uv_dict))
+
+
+#############################################################
+#
+# Check if there are already some UDIM selection sets.
+# If yes then delete those
+#
+#############################################################
+
 lx.eval("select.type polygon")
 layer_svc.select("polsets")
 poly_set_num = layer_svc.query("polsets")
@@ -74,14 +96,14 @@ if poly_set_num:
     delete_sets = []
     
     for i in poly_set_num:
-        
+        # Select the poly set
         layer_svc.select("polset.index", str(i))
         poly_set_name = layer_svc.query("polset.name")
         
         # Find a UDIM selection set and delete it
         if "UDIM_" in poly_set_name:
             delete_sets.append(poly_set_name)
-        
+            
         else:
             pass
         
@@ -98,39 +120,36 @@ if poly_set_num:
 t1 = time.time()
 #############################
 
-# Selection type
-lx.eval("select.type vertex")
 
-
-# Create selection sets
-
-################################
-#   Code to change:
-# Use following to get key and value at the same time.
-# for key, value in uv_dict.iteritems():
+##########################################
 #
-################################
-for key in uv_dict:
+# Now lets create something!
+# Here we select the polys which were stored in the uv_dict
+# and assign them to their UDIM selection set
+#
+# iteritems() is faster and gives access to key and value at the same time.
+#
+##########################################
+
+for key, index in uv_dict.iteritems():
     # Clear selection
     lx.eval("select.drop polygon")
-    lx.eval("select.drop vertex")
     
-    # Progress bar steps
-    progressbar.init(len(uv_dict[key]))
-    
-    # Select verts
-    for index in uv_dict[key]:
-        lx.eval("select.element %s vertex add %s" %(layer_index, index))
+    # Select polys
+    for i in index:
+        lx.eval("select.element %s polygon add %s" %(layer_index, i))
         
-        # Progressbar step
-        progressbar.step(1)
-    
-    # Convert selection to polys and create a new selection set with UDIM
-    lx.eval("select.convert polygon")
+    # Create a new selection set with the UDIM as name: UDIM_1011
     lx.eval("select.editSet UDIM_%s add" %key)
     
     # Logging
     lx.out("New selection set created: UDIM_", key)
+    
+    # Clear selection
+    lx.eval("select.drop polygon")
+    
+    # Progressbar step
+    progressbar.step(1)
 
 #############################
 ### Debugging: Stop Time  ###
@@ -139,8 +158,7 @@ sets_creation = t2 - t1
 #############################
 
 # Debugging Speed
-lx.out("Dictionary Setup: %s sec" %dict_setup)
-lx.out("Selection Sets: %s sec" %sets_creation)
+lx.out("Selection Sets Creation: %s sec" %sets_creation)
 
 
 
