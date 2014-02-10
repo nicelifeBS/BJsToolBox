@@ -16,7 +16,7 @@
 #   in the timeline. The last selected camera is the one
 #   which is animated. Fire the script
 #
-#   Bjoern Siegert 2014-02-10
+#   Bjoern Siegert 2014-02-11
 #
 ##---------------------------------------------------------##
 
