@@ -89,35 +89,35 @@ def profileInner():
     # modify the cube to a thread profile
     lx.eval("select.typeFrom edge true")
     
-    lx.eval("select.element %s edge set 3 2" %layer_index)
+    lx.eval("select.element %s edge set 2 3" %layer_index)
     lx.eval("tool.set edge.extend on")
     lx.eval("tool.reset edge.extend")
-    lx.eval("tool.attr edge.extend offX 0.005")
-    lx.eval("tool.apply")
+    lx.eval("tool.setAttr edge.extend offX 0.005")
+    lx.eval("tool.setAttr edge.extend offY 0.0")
+    lx.eval("tool.setAttr edge.extend offZ 0.0")
+    lx.eval("tool.doApply")
     lx.eval("tool.set edge.extend off 0")
     
     lx.eval("select.element %s edge set 4 5" %layer_index)
     lx.eval("tool.set TransformScale on")
     lx.eval("tool.reset xfrm.transform")
-    lx.eval("tool.set actr.select on")
+    lx.eval("tool.set actr.origin on")
     lx.eval("tool.setattr xfrm.transform SY 0.7")
     lx.eval("tool.apply")
-    lx.eval("tool.set actr.select off 0")
+    lx.eval("tool.set actr.origin off 0")
     lx.eval("tool.set TransformScale off 0")
     
     lx.eval("select.element %s edge set 2 1" %layer_index)
-    
     lx.eval("tool.set edge.extend on")
     lx.eval("tool.reset edge.extend")
     lx.eval("tool.attr edge.extend offY 0.004")
     lx.eval("tool.apply")
     lx.eval("tool.set edge.extend off 0")
-    
     lx.eval("select.drop edge")
     
     # center profile 
     lx.eval("vert.center all")
-
+    
 def profileOuter():
     """Creates a profile poly for an outer side of a thread. It uses the profileInner() function and then mirrors the geometry."""
     profileInner()
@@ -215,6 +215,7 @@ def warning(): # Depricated!
 
 ### VARIABLES ###
 args = lx.args()
+
 layer_list = lx.evalN("query layerservice layer.name ? all") #get all mesh items in scene
 bounding_box = list(lx.eval("query layerservice layer.bounds ? selected")) #[X_A,Y_A,Z_A,X_B,Y_B,Z_B])
 mesh_name_thread = "BJ_Tools_thread"
@@ -232,6 +233,7 @@ else:
     userinput = True
 
 # creates actual thread with the radial sweep tool
+
 if args[0] == "innerThread" and userinput == True:
     createMesh(layer_list, mesh_name_thread)
     profileInner()
@@ -244,7 +246,10 @@ elif args[0] == "outerThread" and userinput == True:
     lx.eval("poly.flip")
     
 elif args[0] == "createThread" and mesh_name_thread not in layer_list:
-    warning()    
+    warning()
+
+elif args[0] == "debug":
+    profileInner()
     
 else:
     lx.out("42")    
