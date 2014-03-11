@@ -1,5 +1,19 @@
 #python
 
+##------------------------------------------------------##
+#         Camera Match
+#   Matching a camera of an image using
+#   two vanish points.
+#   User has to draw two edge bundles which
+#   resemble the x and the y axis.
+#   The image must not be cropped. Otherwise
+#   it is not possible to derive the focal length
+#
+#   Author: Bjoern Siegert 2014-03-10
+#
+##------------------------------------------------------##
+
+
 import math
 
 class vector(object):
@@ -244,7 +258,8 @@ def userValueTemp(userValueName, value):
         lx.eval("user.value %s {%s}" %(userValueName, value))
 
 def backdropSize(backdropID):
-    """Save backdrop sizes in uservalues"""
+    """Extract the actual image size based on the pixel ration of a backdrop item.
+    backdropSize[backdropWidth, backdropHeight, aspectRatio]"""
     # select backdrop item
     sceneService.select("item", str(backdropID))
     lx.eval("select.subItem %s set mesh" %backdropID) # select item in scene to use "backdrop.edit ?"
@@ -271,8 +286,8 @@ def backdropSize(backdropID):
     ## Actual width and height of the backdrop
     backdropWidth = pixelSize * pixelWidth
     backdropHeight = pixelSize * pixelHeight
-    
-    return backdropWidth, backdropHeight
+    aspectRatio = float(pixelWidth) / float(pixelHeight)
+    return backdropWidth, backdropHeight, aspectRatio
 
 ## DELETE
 #def lowestEdge(vertList):
@@ -502,16 +517,20 @@ elif arg == "createCamera":
     lx.eval("transform.channel rot.Y %s" %rotY)
     lx.eval("transform.channel rot.Z %s" %rotZ)
     
-    filmBack_X = lx.eval("item.channel apertureX ?")
-    filmBack_Y = lx.eval("item.channel apertureY ?")
+    # Set the film back of the camera to the aspect ratio of the backdrop image.
+    filmBack_X = lx.eval("item.channel apertureX ?") * backdropSize(lx.eval("user.value backdropID ?"))[2]
+    filmBack_Y = lx.eval("item.channel apertureY ?") * backdropSize(lx.eval("user.value backdropID ?"))[2]
+    
     
     if AoV_ver < AoV_hor:
-        lx.eval("camera.hfov %s" %AoV_hor)
+        lx.eval("item.channel apertureX %s" %filmBack_X)
+        lx.eval("item.channel apertureY %s" %filmBack_Y)
+        lx.eval("camera.hfov %s" %AoV_ver)
     else:
         # switching filmback values
         lx.eval("item.channel apertureX %s" %filmBack_Y)
         lx.eval("item.channel apertureY %s" %filmBack_X)
-        lx.eval("camera.hfov %s" %AoV_ver)
+        lx.eval("camera.hfov %s" %AoV_hor)
     
     ##---- LOGGING ----##
     lx.out("AoV horizontal: ", AoV_hor)
@@ -520,3 +539,4 @@ elif arg == "createCamera":
     lx.out("Camera Rotation X: ", rotX)
     lx.out("Camera Rotation Y: ", rotY)
     lx.out("Camera Rotation Z: ", rotZ)
+    lx.out("backdrop info: ", backdropSize(lx.eval("user.value backdropID ?")))
