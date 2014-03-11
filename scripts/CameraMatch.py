@@ -525,7 +525,7 @@ elif arg == "createCamera":
     if AoV_ver < AoV_hor:
         lx.eval("item.channel apertureX %s" %filmBack_X)
         lx.eval("item.channel apertureY %s" %filmBack_Y)
-        lx.eval("camera.hfov %s" %AoV_ver)
+        lx.eval("camera.hfov %s" %AoV_hor)
     else:
         # switching filmback values
         lx.eval("item.channel apertureX %s" %filmBack_Y)
