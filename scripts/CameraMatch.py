@@ -195,8 +195,7 @@ def midPoint(point01, point02):
     
 #--- Photogrammetry Stuff ---#
 def focalDistance(VPL,VPR):
-    # Focal distance of the two vanish points
-    
+    """Calculate the focal distance of the camera. Two vanish point as input."""
     Fu = VPR
     Fv = VPL
     Puv = vector([0,lineNM(VPL,VPR)[0],0])
@@ -214,6 +213,18 @@ def focalDistance(VPL,VPR):
 ###-------- modo stuff -----------###
 
 ## modo methods START ##
+
+def warning_msg(name):
+    """A modal warning dialog. Message text can be set through name var."""
+    try:
+        lx.eval("dialog.setup warning")
+        lx.eval("dialog.title {Error}")
+        lx.eval("dialog.msg {%s}" %name)
+        lx.eval("dialog.result ok")
+        lx.eval("dialog.open")
+        
+    except RuntimeError:
+        pass
 
 def vertList():
     """
@@ -259,7 +270,7 @@ def userValueTemp(userValueName, value):
 
 def backdropSize(backdropID):
     """Extract the actual image size based on the pixel ration of a backdrop item.
-    backdropSize[backdropWidth, backdropHeight, aspectRatio]"""
+    backdropSize[backdropWidth, backdropHeight, aspectRatio, pixelWidth, pixelHeight]"""
     # select backdrop item
     sceneService.select("item", str(backdropID))
     lx.eval("select.subItem %s set mesh" %backdropID) # select item in scene to use "backdrop.edit ?"
@@ -287,7 +298,7 @@ def backdropSize(backdropID):
     backdropWidth = pixelSize * pixelWidth
     backdropHeight = pixelSize * pixelHeight
     aspectRatio = float(pixelWidth) / float(pixelHeight)
-    return backdropWidth, backdropHeight, aspectRatio
+    return backdropWidth, backdropHeight, aspectRatio, pixelWidth, pixelHeight
 
 ## DELETE
 #def lowestEdge(vertList):
@@ -340,15 +351,15 @@ def convert2list(string):
 
 ## modo methods END ##
 
-## Services ##
+## modo Services ##
 layerService = lx.Service("layerservice")
 sceneService = lx.Service("sceneservice")
 arg = lx.arg()
 
-# Select activ layer
+# Select activ mesh layer
 layerService.select("layer", "main")
 
-## Args ##
+## Arguments ##
 if arg == "createBackdrop":
     lx.eval("view3d.projection fnt")
     lx.eval("item.create backdrop")
@@ -375,168 +386,211 @@ if arg == "createBackdrop":
 elif arg == "xAxis":
     # Save vanish point of X Axis
     # Values are stored in a temporary user value x and y are separated by ";"
-    pointList = vertList()
-    xy_coordinates = lineIntersect(pointList[0],pointList[1])
-    
-    # Save vanish point
-    userValueTemp("xAxisVP", str(xy_coordinates[0]) + ";" + str(xy_coordinates[1]))
-    
-    ## DELETE ##
-    # Save points of lowest edge for the ground plane
-    #if lowestEdge(pointList) == 0:
-    #    userValueTemp("ground_xAxis", str(pointList[0][0]) + ";" + str(pointList[0][1]))
-    #else:
-    #    userValueTemp("ground_xAxis", str(pointList[1][0]) + ";" + str(pointList[1][1]))
+    try:
+        pointList = vertList()
+    except:
+        warning_msg("Please select two edges to calculate the vanish point.")
+    else:
+        xy_coordinates = lineIntersect(pointList[0],pointList[1])
+        userValueTemp("xAxisVP", str(xy_coordinates[0]) + ";" + str(xy_coordinates[1])) # Save vanish point in a user variable
         
 elif arg == "yAxis":
     # Save vanish point of Y Axis
     # Values are stored in a temporary user value x and y are separated by ";"
-    pointList = vertList()
-    xy_coordinates = lineIntersect(pointList[0],pointList[1])
-    
-    # Save vanish point
-    userValueTemp("yAxisVP", str(xy_coordinates[0]) + ";" + str(xy_coordinates[1]))
-    
-    ## DELETE ##
-    # Save point coordinates of lowest edge for the ground plane
-    #if lowestEdge(pointList) == 0:
-    #    userValueTemp("ground_yAxis", str(pointList[0][0]) + ";" + str(pointList[0][1]))
-    #else:
-    #    userValueTemp("ground_yAxis", str(pointList[1][0]) + ";" + str(pointList[1][1]))
+    try:
+        pointList = vertList()
+    except:
+        warning_msg("Please select two edges to calculate the vanish point.")
+    else:
+        xy_coordinates = lineIntersect(pointList[0],pointList[1])
+        userValueTemp("yAxisVP", str(xy_coordinates[0]) + ";" + str(xy_coordinates[1])) # Save vanish point in a user variable
 
 elif arg == "createCamera":
-    backdropWidth = backdropSize(lx.eval("user.value backdropID ?"))[0]
-    backdropHeight = backdropSize(lx.eval("user.value backdropID ?"))[1]
-    
-    # Vanish points
-    VP1 = create3Dpoint(lx.eval("user.value xAxisVP ?").split(";"))
-    VP2 = create3Dpoint(lx.eval("user.value yAxisVP ?").split(";"))
-
-    # Check the order of the two vanish points
-    # and assign them to left vanish point: VPL or right vanis point: VPR
-    # Points are also converted to a vector with vector()
-    if VP1 < VP2:
-        VPL = vector(VP1)
-        VPR = vector(VP2)
-        #lx.out("VP1 < VP2")
+    # Check if all necessary variables are there
+    if not lx.eval("query scriptsysservice userValue.isDefined ? backdropID"):
+        warning_msg("Please load an image first.")
+    elif not lx.eval("query scriptsysservice userValue.isDefined ? xAxisVP"):
+        warning_msg("Please set the first vanish point.")
+    elif not lx.eval("query scriptsysservice userValue.isDefined ? yAxisVP"):
+        warning_msg("Please set the second vanish point.")
     else:
-        VPL = vector(VP2)
-        VPR = vector(VP1)
-        #lx.out("VP1 > VP2")
-    
-    ## FocalDistance ##
-    FD = focalDistance(VPL, VPR)
-    lx.out("focal distance: ", FD)
-    
-    ## Angle of View ##
-    AoV_hor = 2*angleAlpha(backdropWidth / 2, FD[1], None)
-    AoV_ver = 2*angleAlpha(backdropHeight / 2, FD[1], None)
-    
-    ## Camera Orientation ##
-    O = vector([0,0,FD[1]])
-    Fu = VPR
-    Fv = VPL
-    
-    OFu = Fu - O
-    OFv = Fv - O
-    
-    s1 = length(OFu)
-    s2 = length(OFv)
-    
-    upRc = normalize(OFu)
-    vpRc = normalize(OFv)
-    wpRc = cross(upRc,vpRc)
-    
-    """
-    NOT USED
-    rotMatrix = [
-        [Fu[0] / s1, Fv[0] / s2, wpRc[0]],
-        [Fu[1] / s1, Fv[1] / s2, wpRc[1]],
-        [FD[1] / s1, FD[1] / s2, wpRc[2]]
-    ]
-    
-    lx.out("#### rotMatrix ####")
-    for i in range(len(rotMatrix)):
-        lx.out(rotMatrix[i])
-    lx.out("###################")
-    """
-    lx.eval("item.create mesh camMatchOrientation")
-    lx.eval("tool.set prim.makeVertex on 0")
-    
-    # Create upRc
-    lx.eval("tool.attr prim.makeVertex cenX %s" %upRc[0])
-    lx.eval("tool.attr prim.makeVertex cenY %s" %upRc[1])
-    lx.eval("tool.attr prim.makeVertex cenZ %s" %upRc[2])
-    lx.eval("tool.doApply")
-    
-    # Create Origin
-    lx.eval("tool.attr prim.makeVertex cenX 0")
-    lx.eval("tool.attr prim.makeVertex cenY 0")
-    lx.eval("tool.attr prim.makeVertex cenZ 0")
-    lx.eval("tool.doApply")
-    
-    # Create vpRc
-    lx.eval("tool.attr prim.makeVertex cenX %s" %vpRc[0])
-    lx.eval("tool.attr prim.makeVertex cenY %s" %vpRc[1])
-    lx.eval("tool.attr prim.makeVertex cenZ %s" %vpRc[2])
-    lx.eval("tool.doApply")
-    
-    lx.eval("tool.set prim.makeVertex off 0")
-    
-    layerService.select("layer", "main")
-    layer = layerService.query("layer.index")
-    layerService.select("verts", "all")
-    numVerts = layerService.query("vert.N")
-    lx.eval("select.typeFrom vertex;edge;polygon;item;pivot;center;ptag true")
-    lx.eval("select.drop vertex")
-    
-    for i in range(numVerts):
-        lx.eval("select.element %s vertex add %s" %(layer, i))
+        backdropWidth = backdropSize(lx.eval("user.value backdropID ?"))[0]
+        backdropHeight = backdropSize(lx.eval("user.value backdropID ?"))[1]
+        backdropPixelWidth = backdropSize(lx.eval("user.value backdropID ?"))[3]
+        backdropPixelHeight = backdropSize(lx.eval("user.value backdropID ?"))[4]
         
-    lx.eval("workPlane.fitSelect")
+        # Vanish points
+        VP1 = create3Dpoint(lx.eval("user.value xAxisVP ?").split(";"))
+        VP2 = create3Dpoint(lx.eval("user.value yAxisVP ?").split(";"))
     
-    # Extract rotation values
-    rotX = math.degrees(lx.eval("workPlane.edit rotX:?"))
-    rotY = math.degrees(lx.eval("workPlane.edit rotY:?"))
-    rotZ = math.degrees(lx.eval("workPlane.edit rotZ:?"))
+        # Check the order of the two vanish points
+        # and assign them to left vanish point: VPL or right vanis point: VPR
+        # Points are also converted to a vector with vector()
+        if VP1 < VP2:
+            VPL = vector(VP1)
+            VPR = vector(VP2)
+            #lx.out("VP1 < VP2")
+        else:
+            VPL = vector(VP2)
+            VPR = vector(VP1)
+            #lx.out("VP1 > VP2")
+        
+        ## FocalDistance ##
+        FD = focalDistance(VPL, VPR)
+        lx.out("focal distance: ", FD)
+        
+        ## Angle of View ##
+        AoV_hor = 2*angleAlpha(backdropWidth / 2, FD[1], None)
+        AoV_ver = 2*angleAlpha(backdropHeight / 2, FD[1], None)
+        
+        ## Camera Orientation ##
+        O = vector([0,0,FD[1]])
+        Fu = VPR
+        Fv = VPL
+        
+        OFu = Fu - O
+        OFv = Fv - O
+        
+        s1 = length(OFu)
+        s2 = length(OFv)
+        
+        upRc = normalize(OFu)
+        vpRc = normalize(OFv)
+        wpRc = cross(upRc,vpRc)
+        
+        """
+        NOT USED
+        rotMatrix = [
+            [Fu[0] / s1, Fv[0] / s2, wpRc[0]],
+            [Fu[1] / s1, Fv[1] / s2, wpRc[1]],
+            [FD[1] / s1, FD[1] / s2, wpRc[2]]
+        ]
+        
+        lx.out("#### rotMatrix ####")
+        for i in range(len(rotMatrix)):
+            lx.out(rotMatrix[i])
+        lx.out("###################")
+        """
+        
+        ## Create camera orientation as verticies ##
+        lx.eval("item.create mesh camMatchOrientation")
+        lx.eval("tool.set prim.makeVertex on 0")
+        
+        # Create upRc
+        lx.eval("tool.attr prim.makeVertex cenX %s" %upRc[0])
+        lx.eval("tool.attr prim.makeVertex cenY %s" %upRc[1])
+        lx.eval("tool.attr prim.makeVertex cenZ %s" %upRc[2])
+        lx.eval("tool.doApply")
+        
+        # Create Origin
+        lx.eval("tool.attr prim.makeVertex cenX 0")
+        lx.eval("tool.attr prim.makeVertex cenY 0")
+        lx.eval("tool.attr prim.makeVertex cenZ 0")
+        lx.eval("tool.doApply")
+        
+        # Create vpRc
+        lx.eval("tool.attr prim.makeVertex cenX %s" %vpRc[0])
+        lx.eval("tool.attr prim.makeVertex cenY %s" %vpRc[1])
+        lx.eval("tool.attr prim.makeVertex cenZ %s" %vpRc[2])
+        lx.eval("tool.doApply")
+        
+        # Switch off make verticies
+        lx.eval("tool.set prim.makeVertex off 0")
+        
+        
+        ##-------------------- ORIENT THE WORKPLANE ------------------------##
+        ## The workplane is oriented to the three "bottom" vertex points.   ##
+        ## The middle vertex is the "origin" of the workplane               ##
+        ##------------------------------------------------------------------##
+        
+        layerService.select("layer", "main")
+        layer = layerService.query("layer.index")
+        layerService.select("verts", "all")
+        numVerts = layerService.query("vert.N")
+        lx.eval("select.typeFrom vertex;edge;polygon;item;pivot;center;ptag true")
+        lx.eval("select.drop vertex")
+        
+        for i in range(numVerts):
+            lx.eval("select.element %s vertex add %s" %(layer, i))
+        lx.eval("workPlane.fitSelect")
+        
+        ## Extract rotation values from the workplane ##
+        rotX = math.degrees(lx.eval("workPlane.edit rotX:?"))
+        rotY = math.degrees(lx.eval("workPlane.edit rotY:?"))
+        rotZ = math.degrees(lx.eval("workPlane.edit rotZ:?"))
+        lx.eval("workPlane.reset")
+        
+        ## Fix UP orientation of the rotZ values ##
+        if rotZ > 90:
+            rotZ = 180 - rotZ
+        elif rotZ < -90:
+            rotZ = -(rotZ + 180)
+        else:
+            pass
+        
+        
+        ##------------------------------##
+        ##         CREATE CAMERA        ##
+        ##------------------------------##
 
-    lx.eval("workPlane.reset")
-    
-    # Fix up orientation of camera
-    if rotZ > 90:
-        rotZ = 180 - rotZ
-    elif rotZ < -90:
-        rotZ = -(rotZ + 180)
-    else:
-        pass
-    
-    ## Create Camera ##
-    lx.eval("item.create camera")
-    lx.eval("item.name CamMatch camera")
-    lx.eval("transform.channel rot.X %s" %rotX)
-    lx.eval("transform.channel rot.Y %s" %rotY)
-    lx.eval("transform.channel rot.Z %s" %rotZ)
-    
-    # Set the film back of the camera to the aspect ratio of the backdrop image.
-    filmBack_X = lx.eval("item.channel apertureX ?") * backdropSize(lx.eval("user.value backdropID ?"))[2]
-    filmBack_Y = lx.eval("item.channel apertureY ?") * backdropSize(lx.eval("user.value backdropID ?"))[2]
-    
-    
-    if AoV_ver < AoV_hor:
-        lx.eval("item.channel apertureX %s" %filmBack_X)
-        lx.eval("item.channel apertureY %s" %filmBack_Y)
+        lx.eval("item.create camera")
+        lx.eval("item.name CamMatch camera")
+        lx.eval("transform.channel rot.X %s" %rotX)
+        lx.eval("transform.channel rot.Y %s" %rotY)
+        lx.eval("transform.channel rot.Z %s" %rotZ)
+        lx.eval("transform.channel pos.Y 2.0") # default height of 2 meters
+        
+        # Set the film back of the camera to the aspect ratio of the backdrop image.
+        filmBack_X = lx.eval("item.channel apertureX ?") * backdropSize(lx.eval("user.value backdropID ?"))[2]
+        filmBack_Y = lx.eval("item.channel apertureY ?") * backdropSize(lx.eval("user.value backdropID ?"))[2]
+        
+        ## Check if the image is horizontally or vertically
+        ## If it is vertically the filmBack values must be switched
+        if AoV_ver < AoV_hor:
+            lx.eval("item.channel apertureX %s" %filmBack_X)
+            lx.eval("item.channel apertureY %s" %filmBack_Y)
+        else:
+            # switching filmback values
+            lx.eval("item.channel apertureX %s" %filmBack_Y)
+            lx.eval("item.channel apertureY %s" %filmBack_X)
+        
+        ## Apply the angle of view to the camera ##
+        ## IMPORTANT: Must happen after the filmback is set!
         lx.eval("camera.hfov %s" %AoV_hor)
-    else:
-        # switching filmback values
-        lx.eval("item.channel apertureX %s" %filmBack_Y)
-        lx.eval("item.channel apertureY %s" %filmBack_X)
-        lx.eval("camera.hfov %s" %AoV_hor)
-    
-    ##---- LOGGING ----##
-    lx.out("AoV horizontal: ", AoV_hor)
-    lx.out("AoV vertical: ", AoV_ver)
-    lx.out("image width: ", backdropWidth)
-    lx.out("Camera Rotation X: ", rotX)
-    lx.out("Camera Rotation Y: ", rotY)
-    lx.out("Camera Rotation Z: ", rotZ)
-    lx.out("backdrop info: ", backdropSize(lx.eval("user.value backdropID ?")))
+        
+        
+        ##------------------------------##
+        ##          SCENE SETUP         ##
+        ##------------------------------##
+        
+        # Change viewer to camera
+        lx.eval("view3d.projection cam")
+        
+        # Change backdrop mode to camera
+        lx.eval("select.subItem %s set mesh" %lx.eval("user.value backdropID ?"))
+        lx.eval("item.channel backdrop$projection camera")
+        
+        # Change render resolution to backdrop image
+        sceneService.select("item.N", "all")
+        numItems = sceneService.query("item.N")
+        
+        for i in range(numItems):
+            sceneService.select("item.type", str(i))
+            if sceneService.query("item.type") == "polyRender":
+                lx.out("Render Item: ", sceneService.query("item.id"))
+                lx.eval("select.subItem %s set" %sceneService.query("item.id"))
+                break
+        
+        lx.eval("render.res 0 %s" %backdropPixelWidth)
+        lx.eval("render.res 1 %s"%backdropPixelHeight)
+        
+        ##---- LOGGING ----##
+        lx.out("AoV horizontal: ", AoV_hor)
+        lx.out("AoV vertical: ", AoV_ver)
+        lx.out("Left Vanish Point: ", VPL)
+        lx.out("Right Vanish Point: ", VPR)
+        lx.out("backdrop info: ", backdropSize(lx.eval("user.value backdropID ?")))
+        lx.out("Camera Rotation X: ", rotX)
+        lx.out("Camera Rotation Y: ", rotY)
+        lx.out("Camera Rotation Z: ", rotZ)
+        
