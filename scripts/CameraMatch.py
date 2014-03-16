@@ -9,7 +9,7 @@
 #   The image must not be cropped. Otherwise
 #   it is not possible to derive the focal length
 #
-#   Author: Bjoern Siegert 2014-03-10
+#   Author: Bjoern Siegert 2014-03-16
 #
 ##------------------------------------------------------##
 
@@ -300,30 +300,6 @@ def backdropSize(backdropID):
     aspectRatio = float(pixelWidth) / float(pixelHeight)
     return backdropWidth, backdropHeight, aspectRatio, pixelWidth, pixelHeight
 
-## DELETE
-#def lowestEdge(vertList):
-#    """
-#    return the lowest edge. "0" for edge0 "1" for edge1
-#    """
-#    edge1 = vertList["edge_0"]
-#    edge2 = vertList["edge_1"]
-#    
-#    layerService.select("edge.index", str(edge1))
-#    edge1Pos = layerService.query("edge.pos")
-#    lx.out("edge1Pos %s: %s" %(edge1, edge1Pos))
-#    
-#    layerService.select("edge.index", str(edge2))
-#    edge2Pos = layerService.query("edge.pos")
-#    lx.out("edge2Pos %s: %s" %(edge2, edge2Pos))
-#    
-#    # Compare the y coordinate of the two edges
-#    if edge1Pos[1] < edge2Pos[1]:
-#        lx.out("lowest edge: ", edge1)
-#        return 0
-#    else:
-#        lx.out("lowest edge: ", edge2)
-#        return 1
-
 def create3Dpoint(value):
     """Creates a 3D point list [x,y,z]
     Splits value with ';' and adds z with 0 if len is 2 """
@@ -409,10 +385,13 @@ elif arg == "createCamera":
     # Check if all necessary variables are there
     if not lx.eval("query scriptsysservice userValue.isDefined ? backdropID"):
         warning_msg("Please load an image first.")
+        
     elif not lx.eval("query scriptsysservice userValue.isDefined ? xAxisVP"):
         warning_msg("Please set the first vanish point.")
+    
     elif not lx.eval("query scriptsysservice userValue.isDefined ? yAxisVP"):
         warning_msg("Please set the second vanish point.")
+    
     else:
         backdropWidth = backdropSize(lx.eval("user.value backdropID ?"))[0]
         backdropHeight = backdropSize(lx.eval("user.value backdropID ?"))[1]
@@ -458,22 +437,13 @@ elif arg == "createCamera":
         vpRc = normalize(OFv)
         wpRc = cross(upRc,vpRc)
         
-        """
-        NOT USED
-        rotMatrix = [
-            [Fu[0] / s1, Fv[0] / s2, wpRc[0]],
-            [Fu[1] / s1, Fv[1] / s2, wpRc[1]],
-            [FD[1] / s1, FD[1] / s2, wpRc[2]]
-        ]
-        
-        lx.out("#### rotMatrix ####")
-        for i in range(len(rotMatrix)):
-            lx.out(rotMatrix[i])
-        lx.out("###################")
-        """
-        
         ## Create camera orientation as verticies ##
         lx.eval("item.create mesh camMatchOrientation")
+        
+        # Get the ID of the created mesh
+        sceneService.select("selection", "mesh")
+        camMatchMesh = sceneService.query("selection")
+        
         lx.eval("tool.set prim.makeVertex on 0")
         
         # Create upRc
@@ -528,10 +498,11 @@ elif arg == "createCamera":
         else:
             pass
         
-        
         ##------------------------------##
         ##         CREATE CAMERA        ##
         ##------------------------------##
+        
+        lx.eval("select.drop item {}")
 
         lx.eval("item.create camera")
         lx.eval("item.name CamMatch camera")
@@ -559,6 +530,31 @@ elif arg == "createCamera":
         lx.eval("camera.hfov %s" %AoV_hor)
         
         
+        ##------------------------------------##
+        ## Lock Rotation values of the camera ##
+        ##------------------------------------##
+        
+        if lx.eval("user.value BJsToolbox_cameraLock ?") == True:
+            cameraName = lx.eval("item.name ? camera")
+            sceneService.select("selection", "camera")
+            cameraID = sceneService.select("item.id", sceneService.query("selection"))
+            #lx.eval("select.subItem %s set mesh" %cameraID)
+            camRotChannelName = sceneService.query("item.xfrmRot")
+            
+            # Select Rotation Channels
+            lx.eval("select.channel {%s:rot.X} set" %camRotChannelName)
+            lx.eval("select.channel {%s:rot.Y} add" %camRotChannelName)
+            lx.eval("select.channel {%s:rot.Z} add" %camRotChannelName)
+            
+            # Create group with selected channels and lock it
+            lx.eval("group.create %s_GRP mode:selChans" %cameraName)
+            lx.eval("item.channel group$lock on")
+            
+            lx.out("Camera Locked")
+        else:
+            pass
+        
+        
         ##------------------------------##
         ##          SCENE SETUP         ##
         ##------------------------------##
@@ -584,13 +580,20 @@ elif arg == "createCamera":
         lx.eval("render.res 0 %s" %backdropPixelWidth)
         lx.eval("render.res 1 %s"%backdropPixelHeight)
         
-        ##---- LOGGING ----##
-        lx.out("AoV horizontal: ", AoV_hor)
-        lx.out("AoV vertical: ", AoV_ver)
-        lx.out("Left Vanish Point: ", VPL)
-        lx.out("Right Vanish Point: ", VPR)
-        lx.out("backdrop info: ", backdropSize(lx.eval("user.value backdropID ?")))
-        lx.out("Camera Rotation X: ", rotX)
-        lx.out("Camera Rotation Y: ", rotY)
-        lx.out("Camera Rotation Z: ", rotZ)
         
+        ##------------------------------##
+        ##          SCENE CLEANUP       ##
+        ##------------------------------##
+    
+        lx.eval("select.item %s" %camMatchMesh)
+        lx.eval("item.delete")
+        
+        ###---- LOGGING ----##
+        #lx.out("AoV horizontal: ", AoV_hor)
+        #lx.out("AoV vertical: ", AoV_ver)
+        #lx.out("Left Vanish Point: ", VPL)
+        #lx.out("Right Vanish Point: ", VPR)
+        #lx.out("backdrop info: ", backdropSize(lx.eval("user.value backdropID ?")))
+        #lx.out("Camera Rotation X: ", rotX)
+        #lx.out("Camera Rotation Y: ", rotY)
+        #lx.out("Camera Rotation Z: ", rotZ)
