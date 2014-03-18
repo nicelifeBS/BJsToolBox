@@ -9,6 +9,14 @@
 #   The image must not be cropped. Otherwise
 #   it is not possible to derive the focal length
 #
+#   Basis is the paper:
+#   Using Vanishing Points for Camera Calibration
+#           and Coarse 3D Reconstruction
+#               from a Single Image
+#   E. Guillou, D. Meneveaux, E. Maisel, K. Bouatouch IRISA,
+#   Campus de Beaulieu 35042 Rennes cedex, France
+#
+#
 #   Author: Bjoern Siegert 2014-03-16
 #
 ##------------------------------------------------------##
@@ -195,20 +203,29 @@ def midPoint(point01, point02):
     
 #--- Photogrammetry Stuff ---#
 def focalDistance(VPL,VPR):
-    """Calculate the focal distance of the camera. Two vanish point as input."""
+    """Calculate the focal distance of the camera. Two vanish point as input.
+    Method from 3.2 Determining the focal length from a single image
+    """
+    
     Fu = VPR
     Fv = VPL
-    Puv = vector([0,lineNM(VPL,VPR)[0],0])
+    P = vector([0,0,0]) # Center of the image/ backdrop -> in world origin
     
-    PPuv = Puv
-    FvPuv = Puv - Fv
-    PuvFu = Fu - Puv
+    dirFuFv = normalize(Fv - Fu)
     
-    OPuv = sqrt(FvPuv*PuvFu)
+    # Line FuFv: vec(x) = Fu + s * dirFuFv
+    # Plane between line and point P: dot(dirFuFv, vec(x) - P)
+    # http://nibis.ni.schule.de/~lbs-gym/Vektorpdf/AbstandPunktGerade.pdf
+    s = (dot(dirFuFv, P) - dot(dirFuFv, Fu)) / dot(dirFuFv,dirFuFv)
+    Puv = Fu + dirFuFv * s
     
-    OP = sqrt(OPuv**2 + PPuv**2)
+    PPuv = length(Puv)
+    FvPuv = length(Puv - Fv)
+    FuPuv = length(Puv - Fu)
     
-    return [0,length(OP)]
+    OP = math.sqrt(math.sqrt(FvPuv * FuPuv)**2 - PPuv**2)
+    
+    return [0,OP]
     
 ###-------- modo stuff -----------###
 
@@ -401,7 +418,23 @@ elif arg == "createCamera":
         # Vanish points
         VP1 = create3Dpoint(lx.eval("user.value xAxisVP ?").split(";"))
         VP2 = create3Dpoint(lx.eval("user.value yAxisVP ?").split(";"))
-    
+        
+        ## DEBUG ##
+        lx.eval("item.create mesh DEBUG")
+        lx.eval("tool.set prim.makeVertex on 0")
+        lx.eval("tool.setAttr prim.makeVertex cenX %s" %VP1[0])
+        lx.eval("tool.setAttr prim.makeVertex cenY %s" %VP1[1])
+        lx.eval("tool.setAttr prim.makeVertex cenZ %s" %0)
+        lx.eval("tool.doApply")
+        
+        lx.eval("tool.setAttr prim.makeVertex cenX %s" %VP2[0])
+        lx.eval("tool.setAttr prim.makeVertex cenY %s" %VP2[1])
+        lx.eval("tool.setAttr prim.makeVertex cenZ %s" %0)
+        lx.eval("tool.doApply")
+        lx.eval("tool.set prim.makeVertex off 0")
+        
+        ## DEBUG END ##
+        
         # Check the order of the two vanish points
         # and assign them to left vanish point: VPL or right vanis point: VPR
         # Points are also converted to a vector with vector()
@@ -524,6 +557,7 @@ elif arg == "createCamera":
             # switching filmback values
             lx.eval("item.channel apertureX %s" %filmBack_Y)
             lx.eval("item.channel apertureY %s" %filmBack_X)
+            
         
         ## Apply the angle of view to the camera ##
         ## IMPORTANT: Must happen after the filmback is set!
@@ -580,11 +614,10 @@ elif arg == "createCamera":
         lx.eval("render.res 0 %s" %backdropPixelWidth)
         lx.eval("render.res 1 %s"%backdropPixelHeight)
         
-        
         ##------------------------------##
         ##          SCENE CLEANUP       ##
         ##------------------------------##
-    
+        
         lx.eval("select.item %s" %camMatchMesh)
         lx.eval("item.delete")
         
