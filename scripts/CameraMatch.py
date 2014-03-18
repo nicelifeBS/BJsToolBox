@@ -354,27 +354,31 @@ layerService.select("layer", "main")
 
 ## Arguments ##
 if arg == "createBackdrop":
-    lx.eval("view3d.projection fnt")
-    lx.eval("item.create backdrop")
-    
-    # Save the backdrop id as a user value
-    sceneService.select("selection", "backdrop")
-    backdropID = sceneService.query("selection")
-    if lx.eval("query scriptsysservice userValue.isDefined ? backdropID"):
-        lx.eval("user.value backdropID {%s}" %backdropID)
-    else:
-        lx.eval("user.defNew backdropID string temporary")
-        lx.eval("user.value backdropID {%s}" %backdropID)
-    lx.out("user value saved: ", backdropID)
-    
-    # Load an image
-    lx.eval("clip.load")
-    sceneService.select("selection", "videoStill") # Select the created clip
-    clipName = sceneService.query("selection")
-    lx.eval("backdrop.edit {%s}" %clipName) # Load imported image into backdrop
-    
-    # Create mesh layer
-    lx.eval("item.create mesh CameraMatch_AXIS")
+    try:
+        lx.eval("view3d.projection fnt")
+        lx.eval("item.create backdrop")
+        
+        # Save the backdrop id as a user value
+        sceneService.select("selection", "backdrop")
+        backdropID = sceneService.query("selection")
+        if lx.eval("query scriptsysservice userValue.isDefined ? backdropID"):
+            lx.eval("user.value backdropID {%s}" %backdropID)
+        else:
+            lx.eval("user.defNew backdropID string temporary")
+            lx.eval("user.value backdropID {%s}" %backdropID)
+        lx.out("user value saved: ", backdropID)
+        
+        # Load an image
+        lx.eval("clip.load")
+        sceneService.select("selection", "videoStill") # Select the created clip
+        clipName = sceneService.query("selection")
+        lx.eval("backdrop.edit {%s}" %clipName) # Load imported image into backdrop
+        
+        # Create mesh layer
+        lx.eval("item.create mesh CameraMatch_AXIS")
+    except:
+        lx.out("Abort")
+        lx.eval("item.delete")
 
 elif arg == "xAxis":
     # Save vanish point of X Axis
@@ -418,22 +422,6 @@ elif arg == "createCamera":
         # Vanish points
         VP1 = create3Dpoint(lx.eval("user.value xAxisVP ?").split(";"))
         VP2 = create3Dpoint(lx.eval("user.value yAxisVP ?").split(";"))
-        
-        ## DEBUG ##
-        lx.eval("item.create mesh DEBUG")
-        lx.eval("tool.set prim.makeVertex on 0")
-        lx.eval("tool.setAttr prim.makeVertex cenX %s" %VP1[0])
-        lx.eval("tool.setAttr prim.makeVertex cenY %s" %VP1[1])
-        lx.eval("tool.setAttr prim.makeVertex cenZ %s" %0)
-        lx.eval("tool.doApply")
-        
-        lx.eval("tool.setAttr prim.makeVertex cenX %s" %VP2[0])
-        lx.eval("tool.setAttr prim.makeVertex cenY %s" %VP2[1])
-        lx.eval("tool.setAttr prim.makeVertex cenZ %s" %0)
-        lx.eval("tool.doApply")
-        lx.eval("tool.set prim.makeVertex off 0")
-        
-        ## DEBUG END ##
         
         # Check the order of the two vanish points
         # and assign them to left vanish point: VPL or right vanis point: VPR
