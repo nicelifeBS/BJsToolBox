@@ -4,6 +4,9 @@
 sceneservice = lx.Service('sceneservice')
 layerservice = lx.Service('layerservice')
 
+# Arguments
+arg = lx.arg()
+
 sceneservice.select('render.id', '0')
 renderID = sceneservice.query('render.id')
 renderChildren = list(sceneservice.queryN('render.children'))
@@ -19,18 +22,31 @@ for num in xrange(mask_num):
     maskName = sceneservice.query('mask.name')
     maskTags = sceneservice.queryN('mask.tags')
     
-    # Find the preset mask group and unlock it
-    if 'folded' in maskTags and '.lxl' in maskName:
-        lx.eval('select.subItem {0} set textureLayer'.format(maskID))
-        lx.eval('shader.unlock')
-        if maskID not in masks_delete:
-            masks_delete.append(maskID)        
+    if arg == 'locked':
+        # Find the preset mask group and unlock it
+        if 'folded' in maskTags and '.lxl' in maskName:
+            lx.out('maskID: ',maskID)
+            lx.eval('select.subItem {0} set textureLayer'.format(maskID))
+            lx.eval('shader.unlock')
+            if maskID not in masks_delete:
+                masks_delete.append(maskID)
+        else:
+            continue
+                
+    elif arg == 'unlocked':
+        if '.lxl' in maskName:
+            lx.out('maskID: ',maskID)
+            if maskID not in masks_delete:
+                masks_delete.append(maskID)
+        else:
+            continue        
     else:
-        continue
+        break
     
     # Go thourgh the mask children
     # Move them to the root
     maskChild = sceneservice.queryN('mask.children')
+    lx.out('mask children: ',maskChild)
     for child in maskChild:
         # Position of mask in shader tree
         # If not in root then the index is 1
@@ -45,11 +61,16 @@ for num in xrange(mask_num):
         if sceneservice.query('item.type') == 'mask':            
             lx.eval('select.subItem {0} set textureLayer'.format(child))
             lx.eval('texture.parent {0} {1}'.format(renderID, mask_ST_index))
-            lx.out('Moved {0} to shadertree root'.format(child))
+            lx.out('Moved {0} to shadertree root. {1}: {2}'.format(child, renderID, mask_ST_index))
 
+lx.out('masks to delete: ',masks_delete)
 
 # Clean Up Shader Tree
 lx.eval('select.drop item textureLayer')
 for item in masks_delete:
     lx.eval('select.subItem {0} add textureLayer'.format(item))
-lx.eval('texture.delete')
+try:
+    lx.eval('!texture.delete')
+except:
+    lx.out('Nothing was selected')
+    
