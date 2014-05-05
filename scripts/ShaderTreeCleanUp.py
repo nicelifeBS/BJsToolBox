@@ -68,7 +68,8 @@ for mask in masks_delete:
             lx.eval('texture.parent {0} {1}'.format(renderID, '1'))
             masks_moved[child] = childPTag
     
-# Find duplicated in the mask groups
+# Find mask group duplicates in the moved items
+# Duplicates are added to the masks_delete list
 pTags = list(set(masks_moved.values())) # unique list
 for key, value in masks_moved.iteritems():
     #3lx.eval('select.subItem {0} set textureLayer'.format(key))
@@ -76,13 +77,13 @@ for key, value in masks_moved.iteritems():
         pTags.remove(value)
     else:
         masks_delete.append(key)
+ 
         
-
 # Clean Up Shader Tree
+# delete all items in the masks_delete group
 lx.eval('select.drop item textureLayer')
 for item in masks_delete:
     lx.eval('select.subItem {0} add textureLayer'.format(item))
-
 try:
     lx.eval('!texture.delete')
 except:
