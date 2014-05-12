@@ -41,8 +41,9 @@ for num in xrange(mask_num):
     # If the mask is not in the root ptags and types are checked of all masks above it
     # if one of these masks has an assignment the current maskID is ignored
     # it is also ignored if the ptag is "none" or "all"
-    if '.lxp' in maskName:
+    if '.lxp' in maskName and len(maskChildren) != 0:
         masks_move.append(maskID)
+        lx.out(maskID,':', maskChildren)
         while maskParent != renderID:
             lx.eval('select.subItem {0} set textureLayer'.format(maskParent))
             item_mask = lx.eval('mask.setMesh ?')
@@ -72,9 +73,18 @@ for i in masks_move:
     pTag = lx.eval('mask.setPTag ?')
     
     if pTag not in ptag_list:
-        ptag_list.append(pTag)
+        sceneservice.select('item.id', i)
+        maskName = sceneservice.query('item.name')
+        maskName = maskName[:maskName.index('.lxp')] # mask name without .lxp
+        
         lx.eval('texture.parent %s 1' %renderID)
+        lx.eval('material.reassign {%s} {%s}' %(pTag, maskName))
+        lx.eval('item.name {} mask')
         lx.eval('item.editorColor blue')
+        
+        # maskName is the new ptag and added to the list
+        ptag_list.append(maskName)
+        
     else:
         lx.eval('item.editorColor red')
         lx.eval('texture.delete')
