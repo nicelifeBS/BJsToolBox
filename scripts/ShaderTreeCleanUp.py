@@ -1,5 +1,13 @@
 #python
 
+# Requirement
+'''
+-Find duplicates of .lxl or .lxp mask groups in the shader tree
+-Keep only one instance of the groups
+-And move those directly in the root of the shader tree
+-
+'''
+
 # Services
 sceneservice = lx.Service('sceneservice')
 layerservice = lx.Service('layerservice')
@@ -18,75 +26,92 @@ PTag_filter = ['(all)','(none)']
 
 # Find the preset masks in shader tree
 # unlock them and save id in list
+masks_move = []
 masks_delete = []
+masks_locked = []
 for num in xrange(mask_num):
     sceneservice.select('mask.id', str(num))
     maskID = sceneservice.query('mask.id')
     maskName = sceneservice.query('mask.name')
     maskTags = sceneservice.queryN('mask.tags')
-    maskchildren = sceneservice.queryN('mask.children')
+    maskChildren = sceneservice.queryN('mask.children')
+    maskParent = sceneservice.query('mask.parent')
     
     # Find the preset mask group and unlock it
     # If the ptag is all or none move it to the delete list
-    if ('.lxl' or '.lxp') in maskName:
-        lx.out('maskID: ',maskID)
+    if '.lxp' in maskName:
         lx.eval('select.subItem {0} set textureLayer'.format(maskID))
-
-        if 'folded' in maskTags:
-            lx.eval('shader.unlock')
+        pTag = lx.eval('mask.setPTag ?')
         
-        # Check if preset has a nested lxl group
-        sceneservice.select('item.id', maskchildren[0])
-        childID = sceneservice.query('item.id')
-        if ('.lxl' or '.lxp') in sceneservice.query('item.name') and sceneservice.query('item.type') == 'mask':
-            masks_delete.append(maskID)
-            masks_delete.append(childID)
+        if pTag not in PTag_filter:
+            masks_move.append(maskID)
+            
+            # Find nested lxp mask group and move its content to the current maskID group
+            if len(maskChildren) == 1:
+                sceneservice.select('item.id', maskChildren[0])
+                childName = sceneservice.query('item.name')
+                maskType = sceneservice.query('item.type')
+                
+                if maskName[:maskName.index('.lx')] in childName and maskType == 'mask':
+                    lx.eval('select.drop item')
+                    for i in sceneservice.query('item.children'):
+                        lx.eval('select.subItem {0} add textureLayer'.format(i))
+                    
+                    lx.eval('texture.parent %s -1' %maskID)
+                    lx.eval('select.drop item')
+                    
+            # Now we check if maskID is underneath a mask group
+            # If there is an item mask applied it is copied to the maskID group            
+            while 'polyRender' not in maskParent:
+                lx.eval('select.subItem {0} set textureLayer'.format(maskParent))
+                parent_item = lx.eval('mask.setMesh ?')
+                lx.out('mask Parent:', maskParent)                
+                
+                if parent_item not in PTag_filter:
+                    lx.eval('select.subItem {0} set textureLayer'.format(maskID))
+                    lx.eval('mask.setMesh {%s}' %parent_item)
+                    lx.eval('texture.parent %s 1' %renderID)
+                    masks_move.remove(maskID)
+                    break
 
+                else:
+                    sceneservice.select('item.id', maskParent)
+                    maskParent = sceneservice.query('item.parent')
         else:
             masks_delete.append(maskID)
-     
+            
+    elif '.lxl' in maskName and 'folded' in maskTags:
+        lx.eval('select.subItem {0} set textureLayer'.format(maskID))
+        lx.eval('shader.unlock')
+        lx.eval('select.drop item')
+        for child in maskChildren:
+            lx.eval('select.subItem {0} add textureLayer'.format(child))
+        lx.eval('texture.parent %s 1' %renderID)
+           
              
-# Check if any child is not a mask group
-# If so delete the parent from delete list, break and hop to the next mask in the list
-# Else move the group directly under the root
-masks_moved = {}
-for mask in masks_delete:
-    sceneservice.select('item.id', mask)
-    mask_children = sceneservice.queryN('mask.children')
-    
-    mask_children = sceneservice.queryN('mask.children')
-    for child in mask_children:
-        sceneservice.select('item.type', child)
-        lx.eval('select.subItem {0} set textureLayer'.format(child))
-        childPTag = lx.eval('mask.setPTag ?')
-        
-        if sceneservice.query('item.type') != 'mask' or childPTag in PTag_filter:
-            masks_delete.remove(maskID)
-            break
-    
-        else:
-            lx.eval('texture.parent {0} {1}'.format(renderID, '1'))
-            masks_moved[child] = childPTag
-    
-# Find mask group duplicates in the moved items
-# Duplicates are added to the masks_delete list
-pTags = list(set(masks_moved.values())) # unique list
-for key, value in masks_moved.iteritems():
-    #3lx.eval('select.subItem {0} set textureLayer'.format(key))
-    if value in pTags:
-        pTags.remove(value)
+lx.out(masks_locked)
+lx.out(masks_move)
+lx.out(masks_delete)
+
+# Clean up the shader tree
+# Found ptags are stored in a list and compared against the mask groups
+# If a mask with the same ptag is found it is deleted
+ptag_list = []
+lx.eval('select.drop item')
+for i in masks_move:
+    lx.eval('select.subItem {0} set textureLayer'.format(i))
+    ptag = lx.eval('mask.setPTag ?')
+    sceneservice.select('item.id', i)
+    maskChildren = sceneservice.query('item.children')
+
+    if ptag not in ptag_list and maskChildren != '(none)':        
+        ptag_list.append(ptag)
+        lx.eval('item.editorColor blue')
+        lx.eval('texture.parent %s 1' %renderID)
     else:
-        masks_delete.append(key)
- 
+        if i not in masks_delete:
+            masks_delete.append(i)
         
-# Clean Up Shader Tree
-# delete all items in the masks_delete group
-lx.eval('select.drop item textureLayer')
-for item in masks_delete:
-    lx.eval('select.subItem {0} add textureLayer'.format(item))
-try:
-    lx.eval('!texture.delete')
-except:
-    lx.out('Nothing was selected')
-    
-lx.out('deleted masks: ',masks_delete)
+for i in masks_delete:
+    lx.eval('select.subItem {0} set textureLayer'.format(i))
+    lx.eval('item.editorColor red')
